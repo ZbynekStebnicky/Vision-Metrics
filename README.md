@@ -24,7 +24,7 @@ Run the application:
   ```bash
   python vision_metrics.py
   ```
-Load an image using the `**Load Image**` button.
+Load an image using the **Load Image** button.
 
 ## Select a measurement mode:
 
