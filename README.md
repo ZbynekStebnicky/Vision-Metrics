@@ -33,7 +33,7 @@ Load an image using the **Load Image** button.
 - Angle: Measure angles between three points.
 - Customize colors, pan, and zoom as needed.
 
-Save annotated images using the Save Image button.
+Save annotated images using the **Save Image** button.
 
 ## Keyboard Shortcuts and Tips
 - Zoom: Use the mouse scroll wheel.
