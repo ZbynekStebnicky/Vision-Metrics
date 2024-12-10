@@ -22,7 +22,7 @@ Vision Metrics is a free, powerful and user-friendly tool for precise image meas
 Run the application:
 
   ```bash
-  python vision_metrics.py
+  python VisionMetrics.py
   ```
 Load an image using the **Load Image** button.
 
