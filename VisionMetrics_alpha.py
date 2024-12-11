@@ -265,7 +265,7 @@ class MetrologyApp:
             # Save the output image
             cv2.imwrite(save_path, output_image)
 
-    def draw_arc_on_image(self, image, center, start, end, color, thickness=2):
+    def draw_arc_on_image(self, image, center, start, end, color, thickness=1):
         """Draw an arc on the image representing an angle."""
         # Calculate angles in radians
         start_angle = atan2(start[1] - center[1], start[0] - center[0])
