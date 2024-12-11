@@ -45,6 +45,8 @@ class MetrologyApp:
         self.lines = []
         self.angles = []
         self.drawn_items = []
+        self.arcs = []  # New list to track drawn arcs
+        self.arc_lines = []
 
         # Setup GUI
         self.setup_gui()
@@ -327,14 +329,25 @@ class MetrologyApp:
 
     def undo_last_action(self):
         """Undo the last action."""
-        if self.lines:
-            self.lines.pop()
-        elif self.angles:
+        if self.angles:
             self.angles.pop()
+            # Remove the last arc segments
+            if self.arcs:
+                last_arc = self.arcs.pop()
+                for arc_segment in last_arc:
+                    self.canvas.delete(arc_segment)
+            # Remove the last angle lines
+            if self.arc_lines:
+                self.canvas.delete(self.arc_lines.pop())
+                self.canvas.delete(self.arc_lines.pop())
+        elif self.lines:
+            self.lines.pop()
         elif self.calibration_points:
             self.calibration_points.pop()
         elif self.measurement_points:
             self.measurement_points.pop()
+        else:
+            messagebox.showinfo("Undo", "Nothing to undo!")
         self.redraw_measurements()
 
     def clear_measurements(self):
@@ -398,14 +411,18 @@ class MetrologyApp:
         scaled_p3 = self.scale_and_offset_point(p3)
 
         # Draw the two lines forming the angle
-        self.canvas.create_line(
+        line1 = self.canvas.create_line(
             scaled_p2[0], scaled_p2[1], scaled_p1[0], scaled_p1[1],
-            fill=self.line_color, width=2, tags="line"
+            fill=self.line_color, width=2, tags="measurement"
         )
-        self.canvas.create_line(
+        line2 = self.canvas.create_line(
             scaled_p2[0], scaled_p2[1], scaled_p3[0], scaled_p3[1],
-            fill=self.line_color, width=2, tags="line"
+            fill=self.line_color, width=2, tags="measurement"
         )
+        self.arc_lines.extend([line1, line2])
+
+        # Draw the arc representing the angle
+        self.draw_arc_with_segments(scaled_p2, scaled_p1, scaled_p3, radius=50)
 
         # Reset measurement points
         self.measurement_points = []
@@ -413,7 +430,6 @@ class MetrologyApp:
 
     def draw_arc_with_segments(self, center, start, end, radius=None):
         """Draw an arc explicitly as small line segments between start and end points."""
-        # Adjust coordinates for angle calculations (since canvas Y increases downwards)
         start_x = start[0] - center[0]
         start_y = center[1] - start[1]  # Invert Y
         end_x = end[0] - center[0]
@@ -422,44 +438,44 @@ class MetrologyApp:
         start_angle = atan2(start_y, start_x)
         end_angle = atan2(end_y, end_x)
 
-        # Ensure angles are in the range [0, 2*pi)
         if start_angle < 0:
             start_angle += 2 * np.pi
         if end_angle < 0:
             end_angle += 2 * np.pi
 
-        # Ensure the arc corresponds to the smaller angle
         angle_span = end_angle - start_angle
-        if angle_span > np.pi:  # If angle span is greater than 180°, reverse it
+        if angle_span > np.pi:
             start_angle, end_angle = end_angle, start_angle + 2 * np.pi
 
-        # Calculate dynamic radius if not provided
         if radius is None:
             v1 = np.array([start_x, start_y])
             v2 = np.array([end_x, end_y])
             radius = int(min(np.linalg.norm(v1), np.linalg.norm(v2)) * 0.5)
 
-        # Generate arc points
-        num_segments = 200  # Higher for smoother arcs
+        num_segments = 200
         angles = np.linspace(start_angle, end_angle, num_segments)
         arc_points = [
             (
                 int(center[0] + radius * np.cos(angle)),
-                int(center[1] - radius * np.sin(angle))  # Adjust Y back to canvas coordinates
+                int(center[1] - radius * np.sin(angle))
             )
             for angle in angles
         ]
 
-        # Draw the arc as small line segments
+        arc_segments = []
         for i in range(len(arc_points) - 1):
             x1, y1 = arc_points[i]
             x2, y2 = arc_points[i + 1]
-            self.canvas.create_line(
+            arc_segment = self.canvas.create_line(
                 x1, y1, x2, y2,
-                fill=self.line_color,  # Arc line color
+                fill=self.line_color,
                 width=2,
-                tags="arc"
+                tags="measurement"
             )
+            arc_segments.append(arc_segment)
+
+        # Save arc segments as a group
+        self.arcs.append(arc_segments)
 
     def scale_and_offset_point(self, point):
         """Scale and offset a point."""
