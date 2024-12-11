@@ -42,7 +42,9 @@ Save annotated images using the **Save Image** button.
 - Clear Measurements: Resets all current measurements.
 
 ## Updates
+We are actively working on improving Vision Metrics based on user feedback.
 - This script is still in progress and the latest version (can be unstable) is this:
   ```bash
   VisionMetrics_alpha.py
   ```
+Stay tuned for more features and refinements!
