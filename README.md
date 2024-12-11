@@ -40,3 +40,9 @@ Save annotated images using the **Save Image** button.
 - Pan: Hold and drag the middle mouse button.
 - Undo Last Action: Removes the last measurement or point.
 - Clear Measurements: Resets all current measurements.
+
+## Updates
+- This script is still in progress and the latest version (can be unstable) is this:
+  ```bash
+  VisionMetrics_alpha.py
+  ```
