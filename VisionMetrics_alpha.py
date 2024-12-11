@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from tkinter import Tk, filedialog, Button, Canvas, Label, Frame, Radiobutton, StringVar, Entry, messagebox, colorchooser
 from matplotlib.colors import to_hex
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFont, ImageDraw
 from math import atan2, degrees
 
 class MetrologyApp:
@@ -229,44 +229,45 @@ class MetrologyApp:
     def save_image(self):
         save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])
         if save_path and self.image is not None:
-            output_image = self.image.copy()
+            # Create a copy of the image in RGB format for PIL
+            output_image = cv2.cvtColor(self.image.copy(), cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(output_image)
+            draw = ImageDraw.Draw(pil_image)
 
-            # Converting colors from RGB to BGR (for OpenCV)
-            line_color_hex = self.color_to_hex(self.line_color)
-            text_color_hex = self.color_to_hex(self.text_color)
-
-            line_color_bgr = self.hex_to_bgr(line_color_hex)
-            text_color_bgr = self.hex_to_bgr(text_color_hex)
+            # Load a font with degree symbol support
+            font_path = "arial.ttf"  # Update this path to the correct font file location on your system
+            font = ImageFont.truetype(font_path, size=20)
 
             # Draw lines and distances
             for start, end, distance in self.lines:
                 start_px = (int(start[0]), int(start[1]))
                 end_px = (int(end[0]), int(end[1]))
-                cv2.line(output_image, start_px, end_px, line_color_bgr, 2)
+                draw.line([start_px, end_px], fill=self.line_color, width=2)
                 if distance:
                     midpoint = ((start_px[0] + end_px[0]) // 2, (start_px[1] + end_px[1]) // 2)
-                    cv2.putText(output_image, f"{distance:.2f} mm", midpoint, cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color_bgr, 1)
+                    draw.text(midpoint, f"{distance:.2f} mm", fill=self.text_color, font=font)
 
             # Draw angles and arcs
             for p1, p2, p3, angle in self.angles:
                 p1_px = (int(p1[0]), int(p1[1]))
                 p2_px = (int(p2[0]), int(p2[1]))
                 p3_px = (int(p3[0]), int(p3[1]))
-                cv2.line(output_image, p2_px, p1_px, line_color_bgr, 2)
-                cv2.line(output_image, p2_px, p3_px, line_color_bgr, 2)
+                draw.line([p2_px, p1_px], fill=self.line_color, width=2)
+                draw.line([p2_px, p3_px], fill=self.line_color, width=2)
 
                 # Draw the arc representing the angle
-                self.draw_arc_on_image(output_image, p2_px, p1_px, p3_px, line_color_bgr)
+                self.draw_arc_on_image(pil_image, p2_px, p1_px, p3_px)
 
-                # Add the angle text
+                # Add the angle text with a degree symbol
                 text_position = (p2_px[0] + 20, p2_px[1] - 20)
-                cv2.putText(output_image, f"{angle:.2f} deg", text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color_bgr, 1)
+                draw.text(text_position, f"{angle:.2f}°", fill=self.text_color, font=font)
 
-            # Save the output image
+            # Convert back to OpenCV format (BGR) and save
+            output_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
             cv2.imwrite(save_path, output_image)
 
-    def draw_arc_on_image(self, image, center, start, end, color, thickness=1):
-        """Draw an arc on the image representing an angle."""
+    def draw_arc_on_image(self, image, center, start, end, thickness=1):
+        """Draw an arc representing the smaller angle on the image."""
         # Calculate angles in radians
         start_angle = atan2(start[1] - center[1], start[0] - center[0])
         end_angle = atan2(end[1] - center[1], end[0] - center[0])
@@ -277,10 +278,13 @@ class MetrologyApp:
         if end_angle < 0:
             end_angle += 2 * np.pi
 
-        # Ensure the arc corresponds to the smaller angle
+        # Calculate the angle span and ensure it corresponds to the smaller arc
         angle_span = end_angle - start_angle
-        if angle_span > np.pi:  # Reverse if larger than 180°
-            start_angle, end_angle = end_angle, start_angle + 2 * np.pi
+        if angle_span < 0:
+            angle_span += 2 * np.pi
+        if angle_span > np.pi:
+            start_angle, end_angle = end_angle, start_angle
+            angle_span = 2 * np.pi - angle_span
 
         # Set the radius of the arc
         radius = int(min(
@@ -288,21 +292,17 @@ class MetrologyApp:
             np.linalg.norm(np.array(end) - np.array(center))
         ) * 0.2)
 
-        # Convert angles to degrees for OpenCV
+        # Convert angles to degrees for Pillow
         start_angle_deg = np.degrees(start_angle)
         end_angle_deg = np.degrees(end_angle)
 
-        # Draw the arc using OpenCV's ellipse function
-        cv2.ellipse(
-            image,
-            center=center,
-            axes=(radius, radius),
-            angle=0,
-            startAngle=start_angle_deg,
-            endAngle=end_angle_deg,
-            color=color,
-            thickness=thickness
-        )
+        # Draw the arc using Pillow's drawing functionality
+        draw = ImageDraw.Draw(image)
+        bbox = [
+            (center[0] - radius, center[1] - radius),
+            (center[0] + radius, center[1] + radius)
+        ]
+        draw.arc(bbox, start=start_angle_deg, end=end_angle_deg, fill=self.line_color, width=thickness)
 
     def change_line_color(self):
         """Change the line color."""
