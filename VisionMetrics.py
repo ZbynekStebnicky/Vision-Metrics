@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from tkinter import Tk, filedialog, Button, Canvas, Label, Frame, Radiobutton, StringVar, Entry, messagebox, colorchooser
 from matplotlib.colors import to_hex
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFont, ImageDraw
 from math import atan2, degrees
 
 class MetrologyApp:
@@ -45,6 +45,8 @@ class MetrologyApp:
         self.lines = []
         self.angles = []
         self.drawn_items = []
+        self.arcs = []
+        self.arc_lines = []
 
         # Setup GUI
         self.setup_gui()
@@ -119,21 +121,32 @@ class MetrologyApp:
         # Draw points
         for point in self.calibration_points + self.measurement_points:
             scaled_point = self.scale_and_offset_point(point)
-            self.canvas.create_oval(scaled_point[0] - 3, scaled_point[1] - 3,
-                                    scaled_point[0] + 3, scaled_point[1] + 3,
-                                    fill=self.point_color, tags="measurement")
+            self.canvas.create_oval(
+                scaled_point[0] - 3, scaled_point[1] - 3,
+                scaled_point[0] + 3, scaled_point[1] + 3,
+                fill=self.point_color, tags="measurement"
+            )
 
         # Draw lines
         for line in self.lines:
             start, end, distance = line
             scaled_start = self.scale_and_offset_point(start)
             scaled_end = self.scale_and_offset_point(end)
-            self.canvas.create_line(scaled_start[0], scaled_start[1], scaled_end[0], scaled_end[1],
-                                    fill=self.line_color, width=2, tags="measurement")
+            self.canvas.create_line(
+                scaled_start[0], scaled_start[1],
+                scaled_end[0], scaled_end[1],
+                fill=self.line_color, width=2, tags="measurement"
+            )
             if distance is not None:
-                midpoint = ((scaled_start[0] + scaled_end[0]) // 2, (scaled_start[1] + scaled_end[1]) // 2)
-                self.canvas.create_text(midpoint[0], midpoint[1],
-                                        text=f"{distance:.2f} mm", fill=self.text_color, font=("Arial", 10), tags="measurement")
+                midpoint = (
+                    (scaled_start[0] + scaled_end[0]) // 2,
+                    (scaled_start[1] + scaled_end[1]) // 2,
+                )
+                self.canvas.create_text(
+                    midpoint[0], midpoint[1],
+                    text=f"{distance:.2f} mm", fill=self.text_color,
+                    font=("Arial", 10), tags="measurement"
+                )
 
         # Draw angles
         for angle in self.angles:
@@ -141,12 +154,20 @@ class MetrologyApp:
             scaled_p1 = self.scale_and_offset_point(p1)
             scaled_p2 = self.scale_and_offset_point(p2)
             scaled_p3 = self.scale_and_offset_point(p3)
-            self.canvas.create_line(scaled_p1[0], scaled_p1[1], scaled_p2[0], scaled_p2[1],
-                                    fill=self.line_color, width=2, tags="measurement")
-            self.canvas.create_line(scaled_p2[0], scaled_p2[1], scaled_p3[0], scaled_p3[1],
-                                    fill=self.line_color, width=2, tags="measurement")
-            self.canvas.create_text(scaled_p2[0], scaled_p2[1] - 20,
-                                    text=f"{angle_value:.2f}°", fill=self.text_color, font=("Arial", 10), tags="measurement")
+            self.canvas.create_line(
+                scaled_p2[0], scaled_p2[1], scaled_p1[0], scaled_p1[1],
+                fill=self.line_color, width=2, tags="measurement"
+            )
+            self.canvas.create_line(
+                scaled_p2[0], scaled_p2[1], scaled_p3[0], scaled_p3[1],
+                fill=self.line_color, width=2, tags="measurement"
+            )
+            self.draw_arc_with_segments(scaled_p2, scaled_p1, scaled_p3, radius=50)
+            self.canvas.create_text(
+                scaled_p2[0], scaled_p2[1] - 20,
+                text=f"{angle_value:.2f}°", fill=self.text_color,
+                font=("Arial", 10), tags="measurement"
+            )
 
     def on_click(self, event):
         """Handle clicks for adding points."""
@@ -210,34 +231,80 @@ class MetrologyApp:
     def save_image(self):
         save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])
         if save_path and self.image is not None:
-            output_image = self.image.copy()
+            # Create a copy of the image in RGB format for PIL
+            output_image = cv2.cvtColor(self.image.copy(), cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(output_image)
+            draw = ImageDraw.Draw(pil_image)
 
-            # Converting colour from RGB to BRG (openCV bullshit)
-            line_color_hex = self.color_to_hex(self.line_color)
-            text_color_hex = self.color_to_hex(self.text_color)
+            # Load a font with degree symbol support
+            font_path = "arial.ttf"  # Update this path to the correct font file location on your system
+            font = ImageFont.truetype(font_path, size=20)
 
-            line_color_bgr = self.hex_to_bgr(line_color_hex)
-            text_color_bgr = self.hex_to_bgr(text_color_hex)
-
-            # Line drawing and text
+            # Draw lines and distances
             for start, end, distance in self.lines:
                 start_px = (int(start[0]), int(start[1]))
                 end_px = (int(end[0]), int(end[1]))
-                cv2.line(output_image, start_px, end_px, line_color_bgr, 2)
+                draw.line([start_px, end_px], fill=self.line_color, width=2)
                 if distance:
                     midpoint = ((start_px[0] + end_px[0]) // 2, (start_px[1] + end_px[1]) // 2)
-                    cv2.putText(output_image, f"{distance:.2f} mm", midpoint, cv2.FONT_HERSHEY_SIMPLEX, 1, text_color_bgr, 2)
+                    draw.text(midpoint, f"{distance:.2f} mm", fill=self.text_color, font=font)
 
+            # Draw angles and arcs
             for p1, p2, p3, angle in self.angles:
                 p1_px = (int(p1[0]), int(p1[1]))
                 p2_px = (int(p2[0]), int(p2[1]))
                 p3_px = (int(p3[0]), int(p3[1]))
-                cv2.line(output_image, p1_px, p2_px, line_color_bgr, 2)
-                cv2.line(output_image, p2_px, p3_px, line_color_bgr, 2)
-                cv2.putText(output_image, f"{angle:.2f} deg", p2_px, cv2.FONT_HERSHEY_SIMPLEX, 1, text_color_bgr, 2)
+                draw.line([p2_px, p1_px], fill=self.line_color, width=2)
+                draw.line([p2_px, p3_px], fill=self.line_color, width=2)
 
-            # Saving the picture
+                # Draw the arc representing the angle
+                self.draw_arc_on_image(pil_image, p2_px, p1_px, p3_px)
+
+                # Add the angle text with a degree symbol
+                text_position = (p2_px[0] + 20, p2_px[1] - 20)
+                draw.text(text_position, f"{angle:.2f}°", fill=self.text_color, font=font)
+
+            # Convert back to OpenCV format (BGR) and save
+            output_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
             cv2.imwrite(save_path, output_image)
+
+    def draw_arc_on_image(self, image, center, start, end, thickness=1):
+        """Draw an arc representing the smaller angle on the image."""
+        # Calculate angles in radians
+        start_angle = atan2(start[1] - center[1], start[0] - center[0])
+        end_angle = atan2(end[1] - center[1], end[0] - center[0])
+
+        # Normalize angles to range [0, 2π)
+        if start_angle < 0:
+            start_angle += 2 * np.pi
+        if end_angle < 0:
+            end_angle += 2 * np.pi
+
+        # Calculate the angle span and ensure it corresponds to the smaller arc
+        angle_span = end_angle - start_angle
+        if angle_span < 0:
+            angle_span += 2 * np.pi
+        if angle_span > np.pi:
+            start_angle, end_angle = end_angle, start_angle
+            angle_span = 2 * np.pi - angle_span
+
+        # Set the radius of the arc
+        radius = int(min(
+            np.linalg.norm(np.array(start) - np.array(center)),
+            np.linalg.norm(np.array(end) - np.array(center))
+        ) * 0.2)
+
+        # Convert angles to degrees for Pillow
+        start_angle_deg = np.degrees(start_angle)
+        end_angle_deg = np.degrees(end_angle)
+
+        # Draw the arc using Pillow's drawing functionality
+        draw = ImageDraw.Draw(image)
+        bbox = [
+            (center[0] - radius, center[1] - radius),
+            (center[0] + radius, center[1] + radius)
+        ]
+        draw.arc(bbox, start=start_angle_deg, end=end_angle_deg, fill=self.line_color, width=thickness)
 
     def change_line_color(self):
         """Change the line color."""
@@ -262,14 +329,25 @@ class MetrologyApp:
 
     def undo_last_action(self):
         """Undo the last action."""
-        if self.lines:
-            self.lines.pop()
-        elif self.angles:
+        if self.angles:
             self.angles.pop()
+            # Remove the last arc segments
+            if self.arcs:
+                last_arc = self.arcs.pop()
+                for arc_segment in last_arc:
+                    self.canvas.delete(arc_segment)
+            # Remove the last angle lines
+            if self.arc_lines:
+                self.canvas.delete(self.arc_lines.pop())
+                self.canvas.delete(self.arc_lines.pop())
+        elif self.lines:
+            self.lines.pop()
         elif self.calibration_points:
             self.calibration_points.pop()
         elif self.measurement_points:
             self.measurement_points.pop()
+        else:
+            messagebox.showinfo("Undo", "Nothing to undo!")
         self.redraw_measurements()
 
     def clear_measurements(self):
@@ -306,16 +384,98 @@ class MetrologyApp:
         self.display_image()
     
     def measure_angle(self):
-        """Measure the angle between three points."""
+        """Measure the angle between three points and draw an arc representing the angle."""
+        if len(self.measurement_points) < 3:
+            messagebox.showerror("Error", "Please select three points to measure an angle.")
+            return
+
+        # Extract the three points
         p1, p2, p3 = map(np.array, self.measurement_points[:3])
+
+        # Calculate vectors
         v1 = p1 - p2
         v2 = p3 - p2
+
+        # Calculate angle in degrees
         angle_rad = atan2(v2[1], v2[0]) - atan2(v1[1], v1[0])
         angle_deg = abs(degrees(angle_rad))
         if angle_deg > 180:
             angle_deg = 360 - angle_deg
+
+        # Save the angle
         self.angles.append((p1.tolist(), p2.tolist(), p3.tolist(), angle_deg))
+
+        # Scale and offset points for the canvas
+        scaled_p1 = self.scale_and_offset_point(p1)
+        scaled_p2 = self.scale_and_offset_point(p2)
+        scaled_p3 = self.scale_and_offset_point(p3)
+
+        # Draw the two lines forming the angle
+        line1 = self.canvas.create_line(
+            scaled_p2[0], scaled_p2[1], scaled_p1[0], scaled_p1[1],
+            fill=self.line_color, width=2, tags="measurement"
+        )
+        line2 = self.canvas.create_line(
+            scaled_p2[0], scaled_p2[1], scaled_p3[0], scaled_p3[1],
+            fill=self.line_color, width=2, tags="measurement"
+        )
+        self.arc_lines.extend([line1, line2])
+
+        # Draw the arc representing the angle
+        self.draw_arc_with_segments(scaled_p2, scaled_p1, scaled_p3, radius=50)
+
+        # Reset measurement points
         self.measurement_points = []
+        self.redraw_measurements()
+
+    def draw_arc_with_segments(self, center, start, end, radius=None):
+        """Draw an arc explicitly as small line segments between start and end points."""
+        start_x = start[0] - center[0]
+        start_y = center[1] - start[1]  # Invert Y
+        end_x = end[0] - center[0]
+        end_y = center[1] - end[1]      # Invert Y
+
+        start_angle = atan2(start_y, start_x)
+        end_angle = atan2(end_y, end_x)
+
+        if start_angle < 0:
+            start_angle += 2 * np.pi
+        if end_angle < 0:
+            end_angle += 2 * np.pi
+
+        angle_span = end_angle - start_angle
+        if angle_span > np.pi:
+            start_angle, end_angle = end_angle, start_angle + 2 * np.pi
+
+        if radius is None:
+            v1 = np.array([start_x, start_y])
+            v2 = np.array([end_x, end_y])
+            radius = int(min(np.linalg.norm(v1), np.linalg.norm(v2)) * 0.5)
+
+        num_segments = 200
+        angles = np.linspace(start_angle, end_angle, num_segments)
+        arc_points = [
+            (
+                int(center[0] + radius * np.cos(angle)),
+                int(center[1] - radius * np.sin(angle))
+            )
+            for angle in angles
+        ]
+
+        arc_segments = []
+        for i in range(len(arc_points) - 1):
+            x1, y1 = arc_points[i]
+            x2, y2 = arc_points[i + 1]
+            arc_segment = self.canvas.create_line(
+                x1, y1, x2, y2,
+                fill=self.line_color,
+                width=2,
+                tags="measurement"
+            )
+            arc_segments.append(arc_segment)
+
+        # Save arc segments as a group
+        self.arcs.append(arc_segments)
 
     def scale_and_offset_point(self, point):
         """Scale and offset a point."""
@@ -336,3 +496,5 @@ if __name__ == "__main__":
     root = Tk()
     app = MetrologyApp(root)
     root.mainloop()
+
+# TO DO: True undo
