@@ -351,20 +351,34 @@ class MetrologyApp:
         last_action = self.action_stack.pop()
         action_type = last_action['type']
 
-        if action_type == 'line' and self.lines:
-            # Remove the last line
-            self.lines.pop()
-        elif action_type == 'angle' and self.angles:
-            # Remove the last angle and its associated arcs
-            self.angles.pop()
-            if self.arcs:
-                last_arc = self.arcs.pop()  # Get the last arc group
-                for segment in last_arc:
-                    self.canvas.delete(segment)  # Remove each segment of the arc
-        elif action_type == 'calibration':
-            # Restore the previous calibration state
-            self.calibration_points = last_action['previous_points']
-            self.scale_factor = last_action['previous_scale']
+        try:
+            if action_type == 'line' and self.lines:
+                # Remove the last line
+                self.lines.pop()
+                if len(self.action_stack) >= 2:  # Ensure there are enough items to pop
+                    self.action_stack.pop()
+                    self.action_stack.pop()
+            elif action_type == 'angle' and self.angles:
+                # Remove the last angle and its associated arcs
+                self.angles.pop()
+                if self.arcs:
+                    last_arc = self.arcs.pop()  # Get the last arc group
+                    for segment in last_arc:
+                        self.canvas.delete(segment)  # Remove each segment of the arc
+                if len(self.action_stack) >= 3:  # Ensure there are enough items to pop
+                    self.action_stack.pop()
+                    self.action_stack.pop()
+                    self.action_stack.pop()
+            elif action_type == 'calibration':
+                # Restore the previous calibration state
+                self.calibration_points = last_action.get('previous_points', [])
+                self.scale_factor = last_action.get('previous_scale', None)
+            else:
+                messagebox.showwarning("Undo Error", f"Unknown action type: {action_type}")
+        except Exception as e:
+            messagebox.showerror("Undo Error", f"An error occurred while undoing: {str(e)}")
+
+        # Redraw the canvas to reflect the undone state
         self.redraw_measurements()
 
     def clear_measurements(self):
