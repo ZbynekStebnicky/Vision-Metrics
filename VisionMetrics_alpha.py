@@ -47,6 +47,7 @@ class MetrologyApp:
         self.drawn_items = []
         self.arcs = []  # New list to track drawn arcs
         self.arc_lines = []
+        self.action_stack = []  # Stack to track actions for undo
 
         # Setup GUI
         self.setup_gui()
@@ -178,10 +179,18 @@ class MetrologyApp:
                 self.calibrate()
         elif self.mode.get() == "line" and len(self.measurement_points) < 2:
             self.measurement_points.append(point)
+            self.action_stack.append({
+                                        'type': 'point',
+                                        'data': point
+                                    })
             if len(self.measurement_points) == 2:
                 self.draw_line()
         elif self.mode.get() == "angle" and len(self.measurement_points) < 3:
             self.measurement_points.append(point)
+            self.action_stack.append({
+                                        'type': 'point',
+                                        'data': point
+                                    })
             if len(self.measurement_points) == 3:
                 self.measure_angle()
         self.redraw_measurements()
@@ -207,6 +216,11 @@ class MetrologyApp:
                 known_distance = float(calibration_entry.get())
                 self.scale_factor = known_distance / pixel_distance
                 self.calibration_points.clear()
+                self.action_stack.append({
+                                            'type': 'calibration',
+                                            'previous_points': self.calibration_points[:],
+                                            'previous_scale': self.scale_factor
+                                        })
                 top.destroy()
                 messagebox.showinfo("Calibration Success", f"Scale factor set to {self.scale_factor:.4f} mm/pixel.")
             except ValueError:
@@ -329,25 +343,28 @@ class MetrologyApp:
 
     def undo_last_action(self):
         """Undo the last action."""
-        if self.angles:
-            self.angles.pop()
-            # Remove the last arc segments
-            if self.arcs:
-                last_arc = self.arcs.pop()
-                for arc_segment in last_arc:
-                    self.canvas.delete(arc_segment)
-            # Remove the last angle lines
-            if self.arc_lines:
-                self.canvas.delete(self.arc_lines.pop())
-                self.canvas.delete(self.arc_lines.pop())
-        elif self.lines:
-            self.lines.pop()
-        elif self.calibration_points:
-            self.calibration_points.pop()
-        elif self.measurement_points:
-            self.measurement_points.pop()
-        else:
+        if not self.action_stack:
             messagebox.showinfo("Undo", "Nothing to undo!")
+            return
+
+        # Pop the last action from the stack
+        last_action = self.action_stack.pop()
+        action_type = last_action['type']
+
+        if action_type == 'line' and self.lines:
+            # Remove the last line
+            self.lines.pop()
+        elif action_type == 'angle' and self.angles:
+            # Remove the last angle and its associated arcs
+            self.angles.pop()
+            if self.arcs:
+                last_arc = self.arcs.pop()  # Get the last arc group
+                for segment in last_arc:
+                    self.canvas.delete(segment)  # Remove each segment of the arc
+        elif action_type == 'calibration':
+            # Restore the previous calibration state
+            self.calibration_points = last_action['previous_points']
+            self.scale_factor = last_action['previous_scale']
         self.redraw_measurements()
 
     def clear_measurements(self):
@@ -424,6 +441,12 @@ class MetrologyApp:
         # Draw the arc representing the angle
         self.draw_arc_with_segments(scaled_p2, scaled_p1, scaled_p3, radius=50)
 
+        # Recording for undo
+        self.action_stack.append({
+                                    'type': 'angle',
+                                    'data': (p1.tolist(), p2.tolist(), p3.tolist(), angle_deg)
+                                })
+
         # Reset measurement points
         self.measurement_points = []
         self.redraw_measurements()
@@ -491,8 +514,17 @@ class MetrologyApp:
         self.lines.append((p1.tolist(), p2.tolist(), distance_mm))
         self.measurement_points = []
 
+        # Record this action for undo
+        self.action_stack.append({
+                                    'type': 'line',
+                                    'data': (p1.tolist(), p2.tolist(), distance_mm)
+                                })
+        self.redraw_measurements()
+
 
 if __name__ == "__main__":
     root = Tk()
     app = MetrologyApp(root)
     root.mainloop()
+
+# TODO: Fix the undo function even better
