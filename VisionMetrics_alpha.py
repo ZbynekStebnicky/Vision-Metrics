@@ -525,7 +525,7 @@ class MetrologyApp:
         """Stop panning and reset cursor."""
         self.start_x = None
         self.start_y = None
-        self.canvas.config(cursor="arrow")  # Reset cursor to default
+        self.canvas.config(cursor="cross")  # Reset cursor to default
 
     def on_zoom(self, event):
         """Handle zooming."""
@@ -681,7 +681,7 @@ class MetrologyApp:
         mode_cursor = {
             "calibrate": "plus",
             "line": "cross",
-            "angle": "circle"
+            "angle": "cross"
         }
         self.canvas.config(cursor=mode_cursor.get(self.mode.get(), "arrow"))
 
