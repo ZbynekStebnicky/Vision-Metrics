@@ -57,49 +57,64 @@ class MetrologyApp:
     def setup_gui(self):
         """Setup the graphical user interface."""
         # Sidebar
-        self.sidebar = Frame(self.root, width=300, bg="lightgray")
+        self.sidebar = Frame(self.root, width=300, bg="lightgray", relief="groove", bd=2)
         self.sidebar.pack(side="left", fill="y")
 
         # Canvas
-        self.canvas = Canvas(self.root, bg="gray")
+        self.canvas = Canvas(self.root, bg="gray", relief="sunken", bd=2)
         self.canvas.pack(side="right", padx=10, pady=10, expand=True, fill="both")
         self.canvas.bind("<Motion>", self.on_mouse_motion)
 
-        # Sidebar controls
-        Label(self.sidebar, text="Edit", font=("Arial", 12), bg="lightgray").pack(pady=5)
-        Button(self.sidebar, text="Load Image", command=self.load_image, width=20).pack(pady=5)
-        Button(self.sidebar, text="Clear Measurements", command=self.clear_measurements, width=20).pack(pady=5)
-        Button(self.sidebar, text="Undo Last Action", command=self.undo_last_action, width=20).pack(pady=5)
-        Button(self.sidebar, text="Save Image", command=self.save_image, width=20).pack(pady=5)
-        Button(self.sidebar, text="Toggle Dark Mode", command=self.toggle_dark_mode, width=20).pack(pady=5)
+        # File Operations
+        file_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        file_frame.pack(fill="x", pady=5, padx=5)
+        Label(file_frame, text="File Operations", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
+        Button(file_frame, text="Load Image", command=self.load_image, width=20).pack(pady=2)
+        Button(file_frame, text="Save Image", command=self.save_image, width=20).pack(pady=2)
 
-        Label(self.sidebar, text="Measurement Mode", bg="lightgray", font=("Arial", 12)).pack(pady=5)
+        # Measurement Settings
+        measurement_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        measurement_frame.pack(fill="x", pady=5, padx=5)
+        Label(measurement_frame, text="Measurement Mode", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
         self.mode = StringVar(value="line")
-        Radiobutton(self.sidebar, text="Line", variable=self.mode, value="line", bg="lightgray").pack(anchor="w", padx=20)
-        Radiobutton(self.sidebar, text="Angle", variable=self.mode, value="angle", bg="lightgray").pack(anchor="w", padx=20)
-        Radiobutton(self.sidebar, text="Calibrate", variable=self.mode, value="calibrate", bg="lightgray").pack(anchor="w", padx=20)
+        Radiobutton(measurement_frame, text="Line", variable=self.mode, value="line", bg="lightgray").pack(anchor="w", padx=20)
+        Radiobutton(measurement_frame, text="Angle", variable=self.mode, value="angle", bg="lightgray").pack(anchor="w", padx=20)
+        Radiobutton(measurement_frame, text="Calibrate", variable=self.mode, value="calibrate", bg="lightgray").pack(anchor="w", padx=20)
 
-        Label(self.sidebar, text="Layer Management", bg="lightgray", font=("Arial", 12)).pack(pady=5)
+        Button(measurement_frame, text="Clear Measurements", command=self.clear_measurements, width=20).pack(pady=2)
+        Button(measurement_frame, text="Undo Last Action", command=self.undo_last_action, width=20).pack(pady=2)
+
+        # View Settings
+        view_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        view_frame.pack(fill="x", pady=5, padx=5)
+        Label(view_frame, text="View Settings", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
         self.show_lines_var = IntVar(value=1)
         self.show_points_var = IntVar(value=1)
         self.show_angles_var = IntVar(value=1)
-        Checkbutton(self.sidebar, text="Show Lines", variable=self.show_lines_var, command=self.redraw_measurements).pack(anchor="w")
-        Checkbutton(self.sidebar, text="Show Points", variable=self.show_points_var, command=self.redraw_measurements).pack(anchor="w")
-        Checkbutton(self.sidebar, text="Show Angles", variable=self.show_angles_var, command=self.redraw_measurements).pack(anchor="w")
+        Checkbutton(view_frame, text="Show Lines", variable=self.show_lines_var, command=self.redraw_measurements, bg="lightgray").pack(anchor="w")
+        Checkbutton(view_frame, text="Show Points", variable=self.show_points_var, command=self.redraw_measurements, bg="lightgray").pack(anchor="w")
+        Checkbutton(view_frame, text="Show Angles", variable=self.show_angles_var, command=self.redraw_measurements, bg="lightgray").pack(anchor="w")
 
-        Label(self.sidebar, text="Zoom Level", bg="lightgray", font=("Arial", 12)).pack(pady=5)
-        self.zoom_label = Label(self.sidebar, text="Zoom: 100%", bg="lightgray")
+        Label(view_frame, text="Zoom Level", bg="lightgray", font=("Arial", 10)).pack(pady=5)
+        self.zoom_label = Label(view_frame, text="Zoom: 100%", bg="lightgray")
         self.zoom_label.pack()
-        Button(self.sidebar, text="Reset View", command=self.reset_view, width=20).pack(pady=5)
+        Button(view_frame, text="Reset View", command=self.reset_view, width=20).pack(pady=5)
+        Button(view_frame, text="Toggle Dark Mode", command=self.toggle_dark_mode, width=20).pack(pady=5)
 
-        Label(self.sidebar, text="Customize Colours", bg="lightgray", font=("Arial", 12)).pack(pady=5)
-        Button(self.sidebar, text="Select Line Colour", command=self.change_line_color, width=20).pack(pady=5)
-        Button(self.sidebar, text="Select Text Colour", command=self.change_text_color, width=20).pack(pady=5)
-        Button(self.sidebar, text="Select Point Colour", command=self.change_point_color, width=20).pack(pady=5)
+        # Customization
+        customization_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        customization_frame.pack(fill="x", pady=5, padx=5)
+        Label(customization_frame, text="Customize Colours", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
+        Button(customization_frame, text="Select Line Colour", command=self.change_line_color, width=20).pack(pady=2)
+        Button(customization_frame, text="Select Text Colour", command=self.change_text_color, width=20).pack(pady=2)
+        Button(customization_frame, text="Select Point Colour", command=self.change_point_color, width=20).pack(pady=2)
 
-        Label(self.sidebar, text="Measurement History", bg="lightgray", font=("Arial", 12)).pack(pady=5)
-        self.history_listbox = Listbox(self.sidebar, height=10)
-        self.history_listbox.pack(pady=5)
+        # Measurement History
+        history_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        history_frame.pack(fill="x", pady=5, padx=5)
+        Label(history_frame, text="Measurement History", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
+        self.history_listbox = Listbox(history_frame, height=10)
+        self.history_listbox.pack(pady=5, padx=5, fill="x")
 
         # Canvas bindings
         self.canvas.bind("<MouseWheel>", self.on_zoom)
@@ -155,12 +170,18 @@ class MetrologyApp:
 
         # Update sidebar background and text colors
         self.sidebar.configure(bg=bg_color)
-        for widget in self.sidebar.winfo_children():
-            widget_type = widget.winfo_class()
-            if widget_type in ["Label", "Button", "Listbox"]:
-                widget.configure(bg=bg_color, fg=text_color)
-            elif widget_type in ["Checkbutton", "Radiobutton"]:
-                widget.configure(bg=bg_color, fg=textus_color)
+        for frame in self.sidebar.winfo_children():  # Iterate through top-level frames in the sidebar
+            if isinstance(frame, Frame):  # Check if the child is a Frame
+                frame.configure(bg=bg_color)
+                for widget in frame.winfo_children():  # Iterate through widgets in the frame
+                    widget_type = widget.winfo_class()
+                    if widget_type in ["Label", "Button", "Listbox"]:
+                        widget.configure(bg=bg_color, fg=text_color)
+                    elif widget_type in ["Checkbutton", "Radiobutton"]:
+                        widget.configure(bg=bg_color, fg=textus_color)
+
+        # Update canvas background
+        self.canvas.configure(bg="black" if self.is_dark_mode else "gray")
 
         # Update canvas background
         self.canvas.configure(bg="black" if self.is_dark_mode else "gray")
