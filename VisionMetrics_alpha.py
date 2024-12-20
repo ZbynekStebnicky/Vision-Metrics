@@ -50,6 +50,13 @@ class MetrologyApp:
         self.action_stack = []  # Stack to track actions for undo
         self.measurement_history = []
         self.is_dark_mode = False
+        self.text_font = "arial.ttf"  # Ensure this font is available on the system
+        self.text_size = 20
+        self.text_color = "yellow"
+        self.adding_text = False  # Text adding prompt
+        self.texts = []  # New list to track texts
+        self.current_text = ""  # Text to be added
+
 
         # Setup GUI
         self.setup_gui()
@@ -108,6 +115,13 @@ class MetrologyApp:
         Button(customization_frame, text="Select Line Colour", command=self.change_line_color, width=20).pack(pady=2)
         Button(customization_frame, text="Select Text Colour", command=self.change_text_color, width=20).pack(pady=2)
         Button(customization_frame, text="Select Point Colour", command=self.change_point_color, width=20).pack(pady=2)
+
+        # Text Operations
+        text_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
+        text_frame.pack(fill="x", pady=5, padx=5)
+        Label(text_frame, text="Add Text", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=5)
+        Button(text_frame, text="Input Text", command=self.input_text, width=20).pack(pady=2)
+        Button(text_frame, text="Change Text Color", command=self.change_text_color, width=20).pack(pady=2)
 
         # Measurement History
         history_frame = Frame(self.sidebar, bg="lightgray", relief="groove", bd=1)
@@ -206,6 +220,12 @@ class MetrologyApp:
         """Redraw all measurements."""
         self.canvas.delete("measurement")
 
+        if hasattr(self, "texts"):
+            for x, y, text in self.texts:
+                scaled_x = int(x * self.zoom_level + self.offset_x)
+                scaled_y = int(y * self.zoom_level + self.offset_y)
+                self.canvas.create_text(scaled_x, scaled_y, text=text, fill=self.text_color, font=("Arial", self.text_size), tags="measurement")
+
         # Redraw points if enabled
         if self.show_points_var.get():
             for i, point in enumerate(self.calibration_points + self.measurement_points):
@@ -285,6 +305,28 @@ class MetrologyApp:
     def on_click(self, event):
         """Handle clicks for adding points."""
         point = [(event.x - self.offset_x) / self.zoom_level, (event.y - self.offset_y) / self.zoom_level]
+
+        # Text adding
+        if self.adding_text:
+            if hasattr(self, "current_text") and self.image is not None:
+                x, y = int(event.x / self.zoom_level), int(event.y / self.zoom_level)
+
+                # Saving text and its position
+                self.texts.append((x, y, self.current_text))
+
+                self.action_stack.append({
+                    'type': 'text',
+                    'data': (x, y, self.current_text)
+                                        })
+
+                # Ploting text on canvas
+                font = ("Arial", self.text_size)
+                self.canvas.create_text(event.x, event.y, text=self.current_text, fill=self.text_color, font=font)
+
+                self.adding_text = False  # Text adding deactivation
+                messagebox.showinfo("Text Added", f"Text '{self.current_text}' added.")
+            return
+
         if self.mode.get() == "calibrate":
             self.calibration_points.append(point)
             if len(self.calibration_points) == 2:
@@ -391,6 +433,13 @@ class MetrologyApp:
                 text_position = (p2_px[0] + 20, p2_px[1] - 20)
                 draw.text(text_position, f"{angle:.2f}°", fill=self.text_color, font=font)
 
+            # Draw text on the image
+            draw = ImageDraw.Draw(pil_image)
+            font = ImageFont.truetype(self.text_font, self.text_size)
+            for text_data in self.texts:
+                x, y, text = text_data
+                draw.text((x, y), text, fill=self.text_color, font=font)
+
             # Convert back to OpenCV format (BGR) and save
             output_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
             cv2.imwrite(save_path, output_image)
@@ -454,6 +503,43 @@ class MetrologyApp:
             self.point_color = color_code
             self.redraw_measurements()
 
+    def input_text(self):
+        """Showing text input window"""
+        self.text_window = Tk()
+        self.text_window.title("Input Text")
+        Label(self.text_window, text="Enter the text to add:").pack(pady=5)
+        self.text_entry = Entry(self.text_window, width=30)
+        self.text_entry.pack(pady=5)
+
+        def save_text():
+            self.current_text = self.text_entry.get()
+            self.text_window.destroy()
+            if self.current_text:
+                self.adding_text = True
+                messagebox.showinfo("Text Ready", "Click on the image to place the text.")
+
+        Button(self.text_window, text="Submit", command=save_text).pack(pady=5)
+
+    def place_text(self, event):
+        """Place the current text on the image at the clicked position."""
+        if self.adding_text and hasattr(self, "current_text") and self.image is not None:
+            x, y = int(event.x / self.zoom_level), int(event.y / self.zoom_level)
+
+            # Saving text and its position
+            if not hasattr(self, "texts"):
+                self.texts = []
+            self.texts.append((x, y, self.current_text))
+
+            # Draw text on canvas
+            font = ("Arial", self.text_size)
+            self.canvas.create_text(event.x, event.y, text=self.current_text, fill=self.text_color, font=font)
+
+            # Text mode deactivation
+            self.adding_text = False
+            messagebox.showinfo("Text Added", f"Text '{self.current_text}' added.")
+        elif not self.adding_text:
+            print("Text adding mode is not active.")
+
     def undo_last_action(self):
         """Undo the last action."""
         if not self.action_stack:
@@ -486,6 +572,9 @@ class MetrologyApp:
                 # Restore the previous calibration state
                 self.calibration_points = last_action.get('previous_points', [])
                 self.scale_factor = last_action.get('previous_scale', None)
+            elif action_type == 'text' and self.texts:
+                # Remove the last text
+                self.texts.pop()
             else:
                 messagebox.showwarning("Undo Error", f"Unknown action type: {action_type}")
         except Exception as e:
@@ -502,6 +591,7 @@ class MetrologyApp:
         self.measurement_points.clear()
         self.lines.clear()
         self.angles.clear()
+        self.texts.clear()
         self.drawn_items.clear()
 
     def start_pan(self, event):
@@ -525,7 +615,7 @@ class MetrologyApp:
         """Stop panning and reset cursor."""
         self.start_x = None
         self.start_y = None
-        self.canvas.config(cursor="cross")  # Reset cursor to default
+        self.canvas.config(cursor="arrow")  # Reset cursor to default
 
     def on_zoom(self, event):
         """Handle zooming."""
@@ -681,7 +771,7 @@ class MetrologyApp:
         mode_cursor = {
             "calibrate": "plus",
             "line": "cross",
-            "angle": "cross"
+            "angle": "circle"
         }
         self.canvas.config(cursor=mode_cursor.get(self.mode.get(), "arrow"))
 
