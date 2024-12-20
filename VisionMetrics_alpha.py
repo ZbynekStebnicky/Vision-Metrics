@@ -593,6 +593,7 @@ class MetrologyApp:
         self.angles.clear()
         self.texts.clear()
         self.drawn_items.clear()
+        self.redraw_measurements()
 
     def start_pan(self, event):
         """Start panning."""
